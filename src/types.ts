@@ -46,6 +46,7 @@ export interface GameState {
   offroad?: boolean;
   stage?: number;
   stageNotice?: number;
+  gear?: 'LOW' | 'HIGH';
 }
 
 export interface InputState {
@@ -55,6 +56,7 @@ export interface InputState {
   brake?: boolean;
   demo?: boolean;
   branch?: 'left' | 'right';
+  gear?: 'LOW' | 'HIGH';
 }
 
 export interface ProjectedPoint {

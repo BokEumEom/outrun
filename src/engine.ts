@@ -130,6 +130,7 @@ export function create(): GameState {
     checkpoint: 0,
     over: false,
     won: false,
+    gear: 'LOW',
     traffic: Array.from({ length: 230 }, (_, i) => ({
       z: 11000 + i * 11200,
       lane: i % 6,
@@ -197,10 +198,21 @@ export function update(s: GameState, dt: number, input: InputState = {}): void {
   s.smoke = (brake && s.speed > 1500) || s.skid > 0.15 ? 0.65 : Math.max(0, (s.smoke || 0) - dt);
   s.steer = steering;
   s.yaw = mix(s.yaw, steering, 1 - Math.exp(-dt * 8));
+
+  // Authentic 1986 OutRun 2-Speed Mechanical Shifter dynamics
+  if (input.gear) {
+    s.gear = input.gear;
+  } else if (!s.gear) {
+    s.gear = s.speed > 5200 ? 'HIGH' : 'LOW';
+  }
+
+  const maxSpeedForGear = s.gear === 'LOW' ? 5400 : MAX;
+  const accelPower = s.gear === 'LOW' ? 4400 : 3600;
+
   s.speed = clamp(
-    s.speed + (brake ? -13000 : input.gas || input.demo ? 3700 : -2500) * dt,
+    s.speed + (brake ? -13000 : input.gas || input.demo ? accelPower : -2500) * dt,
     0,
-    MAX
+    maxSpeedForGear
   );
   s.x = clamp(
     s.x + steering * dt * 1.8 * (0.24 + ratio * 1.15) - pull * ratio * ratio * dt * 1.8,

@@ -8,6 +8,9 @@ export class SoundEngine {
   private oscillators: { osc: OscillatorNode; harmonic: number }[] = [];
   private squeal: OscillatorNode | null = null;
   private skidGain: GainNode | null = null;
+  private rainGain: GainNode | null = null;
+  private rainSource: AudioBufferSourceNode | null = null;
+  private lastThunderTime = 0;
   private music: HTMLAudioElement | null = null;
   public soundEnabled: boolean = true;
 
@@ -66,12 +69,37 @@ export class SoundEngine {
       skidGain.connect(ac.destination);
       squeal.start();
 
+      // Rain sound synthesizer (filtered white noise)
+      const bufferSize = ac.sampleRate * 2;
+      const noiseBuffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * 0.45;
+      }
+      const rainSource = ac.createBufferSource();
+      rainSource.buffer = noiseBuffer;
+      rainSource.loop = true;
+
+      const rainFilter = ac.createBiquadFilter();
+      rainFilter.type = 'lowpass';
+      rainFilter.frequency.value = 1450;
+
+      const rainGain = ac.createGain();
+      rainGain.gain.value = 0;
+
+      rainSource.connect(rainFilter);
+      rainFilter.connect(rainGain);
+      rainGain.connect(ac.destination);
+      rainSource.start();
+
       this.ac = ac;
       this.gain = gain;
       this.filter = filter;
       this.oscillators = oscillators;
       this.squeal = squeal;
       this.skidGain = skidGain;
+      this.rainGain = rainGain;
+      this.rainSource = rainSource;
     } catch {
       // Audio context might fail until first interaction
     }
@@ -177,7 +205,132 @@ export class SoundEngine {
     }
   }
 
+  public playCoinSound(): void {
+    if (!this.ac) {
+      this.init();
+    }
+    if (!this.ac || !this.soundEnabled) return;
+    try {
+      const now = this.ac.currentTime;
+      const osc = this.ac.createOscillator();
+      const gain = this.ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(987.77, now);
+      osc.frequency.setValueAtTime(1318.51, now + 0.07);
+      gain.gain.setValueAtTime(0.28, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+      osc.connect(gain);
+      gain.connect(this.ac.destination);
+      osc.start(now);
+      osc.stop(now + 0.43);
+    } catch {
+      // Safe fallback
+    }
+  }
+
+  public playGearShift(isHigh: boolean): void {
+    if (!this.ac) {
+      this.init();
+    }
+    if (!this.ac || !this.soundEnabled) return;
+    try {
+      const now = this.ac.currentTime;
+      const osc = this.ac.createOscillator();
+      const gain = this.ac.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(isHigh ? 420 : 320, now);
+      osc.frequency.exponentialRampToValueAtTime(isHigh ? 740 : 190, now + 0.08);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.connect(gain);
+      gain.connect(this.ac.destination);
+      osc.start(now);
+      osc.stop(now + 0.13);
+    } catch {
+      // Safe fallback
+    }
+  }
+
+  public playButtonBeep(): void {
+    if (!this.ac) {
+      this.init();
+    }
+    if (!this.ac || !this.soundEnabled) return;
+    try {
+      const now = this.ac.currentTime;
+      const osc = this.ac.createOscillator();
+      const gain = this.ac.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(960, now);
+      gain.gain.setValueAtTime(0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      osc.connect(gain);
+      gain.connect(this.ac.destination);
+      osc.start(now);
+      osc.stop(now + 0.07);
+    } catch {
+      // Safe fallback
+    }
+  }
+
+  public updateWeather(
+    rainIntensity: number,
+    lightningIntensity: number,
+    paused: boolean
+  ): void {
+    if (!this.ac || !this.rainGain) return;
+    const now = this.ac.currentTime;
+    const targetGain = this.soundEnabled && !paused ? rainIntensity * 0.055 : 0;
+    this.rainGain.gain.setTargetAtTime(targetGain, now, 0.12);
+
+    if (
+      this.soundEnabled &&
+      !paused &&
+      lightningIntensity > 0.8 &&
+      now - this.lastThunderTime > 3.0
+    ) {
+      this.lastThunderTime = now;
+      this.playThunderSound();
+    }
+  }
+
+  public playThunderSound(): void {
+    if (!this.ac || !this.soundEnabled) return;
+    try {
+      const now = this.ac.currentTime;
+      const osc = this.ac.createOscillator();
+      const gain = this.ac.createGain();
+      const filter = this.ac.createBiquadFilter();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(75, now);
+      osc.frequency.exponentialRampToValueAtTime(32, now + 1.2);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(140, now);
+      filter.frequency.linearRampToValueAtTime(60, now + 1.2);
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.18, now + 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.35);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ac.destination);
+      osc.start(now);
+      osc.stop(now + 1.4);
+    } catch {
+      // Safe fallback
+    }
+  }
+
   public destroy(): void {
+    if (this.rainSource) {
+      try {
+        this.rainSource.stop();
+      } catch {}
+      this.rainSource = null;
+    }
     if (this.music) {
       this.music.pause();
       this.music = null;

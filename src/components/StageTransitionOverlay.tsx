@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { STAGES } from '../engine';
-import { Flag, Sparkles, Navigation, Gauge } from 'lucide-react';
+import { STAGE_WEATHER_PRESETS } from '../weather';
+import { Flag, Sparkles, Navigation, Gauge, CloudRain } from 'lucide-react';
 
 interface StageTransitionOverlayProps {
   stageIndex: number;
@@ -51,7 +52,7 @@ export const StageTransitionOverlay: React.FC<StageTransitionOverlayProps> = ({
             <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-[#9ec4ce]">
               <Flag className="w-3.5 h-3.5 text-[#ffda85]" />
               <span className="font-bold text-white uppercase">
-                COASTLINE SECTOR 0{stageIndex + 1}
+                OUT RUN SECTOR 0{stageIndex + 1}
               </span>
             </div>
             <span
@@ -111,6 +112,22 @@ export const StageTransitionOverlay: React.FC<StageTransitionOverlayProps> = ({
                   {stage.subtitle}
                 </span>
               </div>
+
+              {/* Atmospheric Weather Shift Notice */}
+              {STAGE_WEATHER_PRESETS[stageIndex] && (
+                <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1 rounded bg-[#07131e] border border-[#38bdf8]/40 shadow-inner">
+                  <span className="text-sm">
+                    {STAGE_WEATHER_PRESETS[stageIndex].icon}
+                  </span>
+                  <span className="text-xs font-mono font-bold text-[#ffd18c]">
+                    날씨: {STAGE_WEATHER_PRESETS[stageIndex].ko} ({STAGE_WEATHER_PRESETS[stageIndex].name})
+                  </span>
+                  <span className="hidden sm:inline text-white/30 text-[10px]">·</span>
+                  <span className="hidden sm:inline text-[#94d8f6] text-[10px]">
+                    {STAGE_WEATHER_PRESETS[stageIndex].description}
+                  </span>
+                </div>
+              )}
 
               {/* Status / Bonus Announcement Banner */}
               <div className="mt-4 py-2 px-3 rounded bg-black/50 border border-white/10 flex items-center justify-center gap-2">
@@ -187,7 +204,7 @@ export const StageTransitionOverlay: React.FC<StageTransitionOverlayProps> = ({
             className="w-full bg-[#05111c]/95 border-t-2 shadow-lg backdrop-blur-sm px-4 py-2 flex items-center justify-between text-[11px] font-mono text-[#86a4b1]"
             style={{ borderColor: stage.accentColor || '#38bdf8' }}
           >
-            <span>COASTLINE / REBORN HIGH-SPEED SIMULATOR</span>
+            <span>OUT RUN / 1986 HIGH-SPEED ARCADE SIMULATOR</span>
             <span className="text-white/70">6 LANES · DIVERGE & MERGE</span>
           </motion.div>
         </motion.div>
