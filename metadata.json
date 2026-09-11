@@ -1,0 +1,6 @@
+{
+  "name": "COASTLINE REBORN — 海岸線へ",
+  "description": "낮은 차체, 넓은 도로, 해안선의 그 너머로. 해안·도시·고원·사막·유적·석양 6개 스테이지를 질주하자.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
