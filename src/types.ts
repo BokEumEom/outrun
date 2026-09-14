@@ -71,3 +71,12 @@ export interface VisibleSegment {
   q: ProjectedPoint;
   clip: number;
 }
+
+export interface HighScoreEntry {
+  rank: number;
+  initials: string;
+  lapTime: number; // in seconds
+  score: number;
+  stageName: string;
+  date: string;
+}

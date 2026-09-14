@@ -4,7 +4,12 @@ import { GameState, InputState } from '../types';
 import { Assets, H, loadAllAssets, renderEnding, renderGame, W } from '../renderer';
 import { SoundEngine } from '../audio';
 import { StageTransitionOverlay } from './StageTransitionOverlay';
+import { HighScoreModal } from './HighScoreModal';
+import { ServiceMenuModal } from './ServiceMenuModal';
+import { InsertCoinStartScreen } from './InsertCoinStartScreen';
 import { globalWeatherEngine, STAGE_WEATHER_PRESETS } from '../weather';
+import { getHighScores, isHighScore } from '../utils/highScores';
+import { HighScoreEntry } from '../types';
 import {
   Play,
   Pause as PauseIcon,
@@ -22,10 +27,11 @@ import {
   CloudRain,
   Sun,
   Wind,
+  Trophy,
+  Wrench,
 } from 'lucide-react';
 
 import arcadeMarqueeImg from '../assets/images/outrun_arcade_marquee_1789106020266.jpg';
-import titleBadgeImg from '../assets/images/outrun_title_badge_1789106037004.jpg';
 import coinDoorImg from '../assets/images/arcade_coin_door_1789106056252.jpg';
 import arcadeSteeringWheelImg from '../assets/images/arcade_steering_wheel_1789107222363.jpg';
 import arcadeGearShifterImg from '../assets/images/arcade_gear_shifter_1789107237201.jpg';
@@ -69,6 +75,15 @@ export const CoastlineGame: React.FC = () => {
     stageIndex: 0,
     type: 'preview',
   });
+
+  const [highScores, setHighScores] = useState<HighScoreEntry[]>(() => getHighScores());
+  const [isHighScoreOpen, setIsHighScoreOpen] = useState<boolean>(false);
+  const [isServiceOpen, setIsServiceOpen] = useState<boolean>(false);
+  const [pendingRecord, setPendingRecord] = useState<{
+    lapTime: number;
+    score: number;
+    stageName: string;
+  } | null>(null);
 
   const [overlay, setOverlay] = useState<OverlayState>({
     show: true,
@@ -173,6 +188,20 @@ export const CoastlineGame: React.FC = () => {
     const s = stateRef.current;
     const sound = soundEngineRef.current;
 
+    const qualifiesForHighScore =
+      !isDemoRef.current && s.elapsed > 5 && isHighScore(s.elapsed, s.score);
+
+    if (qualifiesForHighScore) {
+      const currentStageIdx = Drive.stageIndex(s.z);
+      const stageName = Drive.STAGES[currentStageIdx]?.name || 'PALM COAST';
+      setPendingRecord({
+        lapTime: s.elapsed,
+        score: s.score,
+        stageName,
+      });
+      setIsHighScoreOpen(true);
+    }
+
     if (s.won) {
       endingRef.current = 0;
       if (sound) sound.syncMusic(false, 0, false);
@@ -183,7 +212,7 @@ export const CoastlineGame: React.FC = () => {
     setOverlay({
       show: true,
       title: 'OUT RUN\nGAME OVER',
-      desc: '다음에는 차량을 피하면서 해안선 너머로 완주해보세요.',
+      desc: `주행 시간: ${s.elapsed.toFixed(1)}초 · 점수: ${s.score.toLocaleString()} PTS · 충돌: ${s.hits}회\n다음에는 차량을 피하며 해안선 너머 결승점까지 달려보세요!`,
       buttonText: '다시 달리기 (RESTART)',
     });
   }, []);
@@ -589,141 +618,47 @@ export const CoastlineGame: React.FC = () => {
               }
             />
 
-            {/* Authentic 1986 Out Run Title Screen Overlay */}
+            {/* Authentic 1986 Out Run 'Insert Coin' Start Screen Component */}
             {overlay.show && (
-              <div
-                id="overlay"
-                className="absolute inset-0 grid place-items-center bg-[#010810]/85 backdrop-blur-[2px] p-2 sm:p-4 transition-all z-20"
-              >
-                <div
-                  id="start-panel"
-                  className="relative px-4 py-4 sm:px-8 sm:py-6 text-center bg-gradient-to-b from-[#091827] via-[#05111c] to-[#02070c] border-4 border-[#ffb703] shadow-[0_0_60px_rgba(255,183,3,0.35),inset_0_2px_0_rgba(255,255,255,0.2)] max-w-[96%] w-[600px] rounded"
-                >
-                  {/* Sega Corner Screws Decor */}
-                  <span className="absolute top-1.5 left-2 text-[#ffb703] text-xs font-mono font-bold">✦</span>
-                  <span className="absolute top-1.5 right-2 text-[#ffb703] text-xs font-mono font-bold">✦</span>
-                  <span className="absolute bottom-1.5 left-2 text-[#ffb703] text-xs font-mono font-bold">✦</span>
-                  <span className="absolute bottom-1.5 right-2 text-[#ffb703] text-xs font-mono font-bold">✦</span>
-
-                  {/* Generated Pixel-Art Title Badge Artwork */}
-                  <div className="relative mx-auto max-w-[420px] rounded overflow-hidden border-2 border-[#ffb703]/70 shadow-lg mb-2.5">
-                    <img
-                      src={titleBadgeImg}
-                      alt="Out Run 1986 Title Screen Artwork"
-                      className="w-full h-auto max-h-[145px] object-cover object-center"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
-                    <div className="absolute bottom-1 left-0 right-0 text-center">
-                      <span className="font-arcade text-[10px] sm:text-xs text-[#ffe066] drop-shadow-[0_2px_2px_#000]">
-                        MOTOR RACING ARCADE
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Pulsing Arcade Prompt */}
-                  <div className="font-arcade text-xs sm:text-sm text-[#fef08a] tracking-widest animate-pulse my-2">
-                    ★ PRESS START BUTTON ★
-                  </div>
-
-                  {/* Out Run Radio Station Selector Cassette */}
-                  <div className="my-2.5 px-2.5 py-2 bg-[#020b12] border border-[#1e3a4e] rounded">
-                    <div className="flex items-center justify-between text-[9px] font-arcade text-[#7dd3fc] mb-1.5">
-                      <span className="flex items-center gap-1 text-[#ffd18c]">
-                        <Radio className="w-3.5 h-3.5" />
-                        FM STEREO 108.3
-                      </span>
-                      <span className="text-[#4ade80] animate-pulse">● PLAYING</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-1 text-[8px] sm:text-[9px] font-arcade">
-                      {['MAGICAL SOUND SHOWER', 'PASSING BREEZE', 'SPLASH WAVE'].map((track) => (
-                        <button
-                          key={track}
-                          onClick={() => setSelectedRadio(track)}
-                          className={`py-1.5 px-1 rounded truncate border transition-all cursor-pointer ${
-                            selectedRadio === track
-                              ? 'bg-[#0284c7] text-white border-[#7dd3fc] shadow-[0_0_10px_rgba(2,132,199,0.5)]'
-                              : 'bg-[#0b1b26] text-[#94a3b8] border-[#1e293b] hover:text-white'
-                          }`}
-                        >
-                          {track.replace('SOUND SHOWER', 'SHOWER')}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Description / Story in Retro Arcade Font */}
-                  <p
-                    id="desc"
-                    className="font-retro text-xs sm:text-[13px] leading-relaxed text-[#cde4e8] my-2 whitespace-pre-line"
-                  >
-                    {overlay.desc}
-                  </p>
-
-                  {/* Authentic 3D Convex Arcade Buttons */}
-                  <div className="flex flex-wrap justify-center gap-4 my-3">
-                    <button
-                      id="start"
-                      disabled={!isLoaded}
-                      onClick={() => startGame(false)}
-                      className="cursor-pointer font-arcade text-xs sm:text-sm px-6 sm:px-8 py-3 rounded-full bg-gradient-to-b from-[#ffd166] via-[#f59e0b] to-[#b45309] text-[#1b1100] font-black tracking-wider uppercase border-3 border-[#fef08a] shadow-[0_6px_0_#78350f,0_12px_30px_rgba(245,158,11,0.6)] active:translate-y-1.5 active:shadow-[0_1px_0_#78350f] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      <Play className="w-4 h-4 fill-current" />
-                      {isLoaded ? overlay.buttonText : loadProgress}
-                    </button>
-
-                    <button
-                      id="demo"
-                      disabled={!isLoaded}
-                      onClick={() => startGame(true)}
-                      className="cursor-pointer font-arcade text-xs sm:text-sm px-5 sm:px-7 py-3 rounded-full bg-gradient-to-b from-[#38bdf8] via-[#0284c7] to-[#0369a1] text-white font-bold tracking-wider uppercase border-3 border-[#bae6fd] shadow-[0_6px_0_#075985,0_12px_25px_rgba(2,132,199,0.5)] active:translate-y-1.5 active:shadow-[0_1px_0_#075985] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      <Car className="w-4 h-4" />
-                      DEMO DRIVE
-                    </button>
-                  </div>
-
-                  {/* Coin-Op Credit Status */}
-                  <div className="flex items-center justify-between border-t border-[#1e3a4e] pt-2 text-[9px] sm:text-[10px] font-arcade text-[#94a3b8]">
-                    <span className="text-[#38bdf8]">
-                      CREDIT: {credits < 10 ? '0' + credits : credits} (1 COIN 1 PLAY)
-                    </span>
-                    <button
-                      onClick={insertCoin}
-                      className="text-[#ffd18c] hover:underline cursor-pointer flex items-center gap-1 font-arcade"
-                    >
-                      <Coins className="w-3 h-3" />
-                      동전 투입 [C/5]
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <InsertCoinStartScreen
+                isLoaded={isLoaded}
+                loadProgress={loadProgress}
+                credits={credits}
+                selectedRadio={selectedRadio}
+                onSelectRadio={setSelectedRadio}
+                onInsertCoin={insertCoin}
+                onStartGame={startGame}
+                onOpenRanking={() => {
+                  soundEngineRef.current?.playButtonBeep();
+                  setIsHighScoreOpen(true);
+                }}
+                soundEnabled={soundOn}
+                onPlayCoinSound={() => soundEngineRef.current?.playCoinSound()}
+                onPlayStartFanfare={() => soundEngineRef.current?.playStageFanfare()}
+                isGameOver={overlay.title.includes('GAME OVER')}
+                gameOverStats={overlay.title.includes('GAME OVER') ? overlay.desc : undefined}
+              />
             )}
           </div>
         </section>
 
-        {/* Authentic 1986 SEGA OutRun Arcade Control Console */}
+        {/* Streamlined Authentic 1986 SEGA OutRun Arcade Control Console */}
         <section
           id="arcade-cabinet-deck"
-          className="mt-3 bg-gradient-to-b from-[#141b24] via-[#0b1017] to-[#05080c] border-2 border-[#334155] rounded-xl p-3 sm:p-4 shadow-[inset_0_2px_4px_rgba(255,255,255,0.08),0_12px_32px_rgba(0,0,0,0.8)] relative overflow-hidden"
+          className="mt-2.5 bg-gradient-to-b from-[#111722] via-[#090e15] to-[#04070b] border-2 border-[#1e293b] rounded-xl p-2.5 sm:p-3 shadow-[0_12px_32px_rgba(0,0,0,0.8),inset_0_1px_2px_rgba(255,255,255,0.06)] relative overflow-hidden"
         >
-          {/* Authentic OutRun Top Hardware Stencil & Serial Placard */}
-          <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-[#1e293b]/80 flex-wrap gap-2 text-xs font-arcade">
-            {/* Sega Hardware Serial Stencil */}
-            <div className="flex items-center gap-2">
+          {/* Header Bar: Sega Stencil, Auto Accel, Quick Tools (Coin, Ranking, Service, Sound, Fullscreen) */}
+          <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-[#1e293b]/90 flex-wrap gap-2 text-xs font-arcade">
+            {/* Sega Hardware Serial Stencil & Auto Accel */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <span className="px-2 py-0.5 rounded bg-[#f59e0b]/20 border border-[#f59e0b]/50 text-[#fef08a] text-[9px] tracking-wider">
-                ★ SEGA RACING MOTOR 16 · 1986 ★
+                ★ SEGA RACING MOTOR 16 ★
               </span>
-              <span className="text-[#38bdf8] text-[9px] hidden sm:inline">
-                SYSTEM 16-B · COIN-OP HARDWARE
-              </span>
-            </div>
 
-            {/* Auto Accel Rocker Switch & Mode */}
-            <div className="flex items-center gap-3 ml-auto">
+              {/* Auto Accel Rocker */}
               <label
                 id="auto-accel-toggle"
-                className="flex items-center gap-2 cursor-pointer bg-[#070c12] px-2.5 py-1 rounded border border-[#1e293b] hover:border-[#38bdf8] transition-colors"
+                className="flex items-center gap-1.5 cursor-pointer bg-[#070c12] px-2 py-0.5 rounded border border-[#1e293b] hover:border-[#38bdf8] transition-colors"
                 title="자동 액셀 가속 온/오프"
               >
                 <input
@@ -738,22 +673,73 @@ export const CoastlineGame: React.FC = () => {
                   className="sr-only"
                 />
                 <span
-                  className={`w-3 h-3 rounded-full border-2 transition-all ${
+                  className={`w-2.5 h-2.5 rounded-full border transition-all ${
                     autoGas
-                      ? 'bg-[#4ade80] border-[#86efac] shadow-[0_0_8px_#4ade80]'
+                      ? 'bg-[#4ade80] border-[#86efac] shadow-[0_0_6px_#4ade80]'
                       : 'bg-[#475569] border-[#64748b]'
                   }`}
                 />
-                <span className="text-[9px] text-[#cbd5e1]">
+                <span className="text-[8px] text-[#cbd5e1]">
                   AUTO ACCEL : {autoGas ? 'ON' : 'OFF'}
                 </span>
               </label>
             </div>
+
+            {/* Quick Action Badges */}
+            <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+              {/* Insert Coin & Credits Button */}
+              <button
+                onClick={insertCoin}
+                className="cursor-pointer group flex items-center gap-1.5 px-2.5 py-1 rounded bg-gradient-to-b from-[#f97316] to-[#c2410c] hover:from-[#fb923c] hover:to-[#ea580c] active:scale-95 border border-[#ffedd5] text-white font-arcade text-[9px] shadow-[0_0_10px_rgba(249,115,22,0.4)] transition-all"
+                title="25¢ 동전 투입 [키보드: 5 또는 C]"
+              >
+                <Coins className="w-3 h-3 text-[#fef08a] group-hover:rotate-12 transition-transform" />
+                <span>25¢ COIN</span>
+                <span className="bg-black/60 px-1 py-0.2 rounded text-[#fde047] font-mono text-[8px]">
+                  {credits < 10 ? '0' + credits : credits}
+                </span>
+              </button>
+
+              {/* Hall of Fame / High Scores Leaderboard */}
+              <button
+                onClick={() => {
+                  soundEngineRef.current?.playButtonBeep();
+                  setIsHighScoreOpen(true);
+                }}
+                className="cursor-pointer flex items-center gap-1 px-2.5 py-1 rounded bg-[#0b1b2b] hover:bg-[#132c45] border border-[#f59e0b] text-[#fef08a] font-arcade text-[9px] shadow-[0_0_8px_rgba(245,158,11,0.25)] transition-all"
+                title="명예의 전당 TOP 5 기록실"
+              >
+                <Trophy className="w-3 h-3 text-[#f59e0b]" />
+                <span>RANKING</span>
+              </button>
+
+              {/* Service Menu & Course/Weather Test */}
+              <button
+                onClick={() => {
+                  soundEngineRef.current?.playButtonBeep();
+                  setIsServiceOpen(true);
+                }}
+                className="cursor-pointer flex items-center gap-1 px-2 py-1 rounded bg-[#0f172a] hover:bg-[#1e293b] border border-[#38bdf8] text-[#7dd3fc] font-arcade text-[9px] transition-all"
+                title="아케이드 서비스 및 코스/날씨 제어 메뉴"
+              >
+                <Wrench className="w-3 h-3 text-[#38bdf8]" />
+                <span className="hidden sm:inline">SERVICE</span>
+              </button>
+
+              {/* Fullscreen */}
+              <button
+                onClick={toggleFullscreen}
+                className="cursor-pointer p-1 rounded bg-[#1e293b] hover:bg-[#334155] border border-[#475569] text-[#94a3b8] hover:text-white transition-colors"
+                title="전체 화면"
+              >
+                <Maximize2 className="w-3 h-3" />
+              </button>
+            </div>
           </div>
 
-          {/* Upper Arcade Plunger Push-Button Deck */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
-            {/* 1P START BUTTON (Yellow Illuminated Sanwa Dome Button) */}
+          {/* Primary Arcade Action Buttons Row */}
+          <div className="grid grid-cols-3 gap-2 mb-2.5">
+            {/* 1P START BUTTON */}
             <button
               id="start-deck-btn"
               disabled={!isLoaded}
@@ -761,133 +747,105 @@ export const CoastlineGame: React.FC = () => {
                 soundEngineRef.current?.playButtonBeep();
                 startGame(false);
               }}
-              className="cursor-pointer group relative flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-gradient-to-b from-[#b45309] via-[#78350f] to-[#451a03] border-2 border-[#f59e0b] shadow-[0_4px_0_#290f02,0_0_15px_rgba(245,158,11,0.4)] active:translate-y-1 active:shadow-[0_1px_0_#290f02] transition-all text-[#fef08a] font-arcade text-xs tracking-wider uppercase"
+              className="cursor-pointer group flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-gradient-to-b from-[#d97706] via-[#92400e] to-[#451a03] border-2 border-[#f59e0b] shadow-[0_3px_0_#290f02,0_0_12px_rgba(245,158,11,0.3)] active:translate-y-0.5 active:shadow-[0_1px_0_#290f02] transition-all text-[#fef08a] font-arcade text-[10px] sm:text-xs tracking-wider uppercase disabled:opacity-50"
             >
-              <span className="w-3.5 h-3.5 rounded-full bg-[#facc15] border-2 border-[#fef08a] shadow-[0_0_8px_#facc15] group-hover:scale-110 transition-transform" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#facc15] border border-[#fef08a] shadow-[0_0_6px_#facc15]" />
               <span>{isPlaying ? 'RESTART 1P' : '1P START'}</span>
             </button>
 
-            {/* PAUSE BUTTON (Blue Translucent Sanwa Dome Button) */}
+            {/* PAUSE BUTTON */}
             <button
               id="pause-deck-btn"
               onClick={() => {
                 soundEngineRef.current?.playButtonBeep();
                 togglePause();
               }}
-              className="cursor-pointer group relative flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-gradient-to-b from-[#0369a1] via-[#075985] to-[#082f49] border-2 border-[#38bdf8] shadow-[0_4px_0_#041d2d,0_0_15px_rgba(56,189,248,0.35)] active:translate-y-1 active:shadow-[0_1px_0_#041d2d] transition-all text-[#e0f2fe] font-arcade text-xs tracking-wider uppercase"
+              className="cursor-pointer group flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-gradient-to-b from-[#0284c7] via-[#075985] to-[#082f49] border-2 border-[#38bdf8] shadow-[0_3px_0_#041d2d,0_0_12px_rgba(56,189,248,0.25)] active:translate-y-0.5 active:shadow-[0_1px_0_#041d2d] transition-all text-[#e0f2fe] font-arcade text-[10px] sm:text-xs tracking-wider uppercase"
             >
-              <span className="w-3.5 h-3.5 rounded-full bg-[#38bdf8] border-2 border-[#bae6fd] shadow-[0_0_8px_#38bdf8] group-hover:scale-110 transition-transform" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8] border border-[#bae6fd] shadow-[0_0_6px_#38bdf8]" />
               <span>{isPaused ? 'RESUME' : 'PAUSE'}</span>
             </button>
 
-            {/* SOUND TOGGLE (Green Illuminated Sanwa Dome Button) */}
+            {/* FM SOUND TOGGLE */}
             <button
               id="sound-deck-btn"
               onClick={() => {
                 toggleSound();
                 soundEngineRef.current?.playButtonBeep();
               }}
-              className="cursor-pointer group relative flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-gradient-to-b from-[#047857] via-[#065f46] to-[#022c22] border-2 border-[#34d399] shadow-[0_4px_0_#011711,0_0_15px_rgba(52,211,153,0.35)] active:translate-y-1 active:shadow-[0_1px_0_#011711] transition-all text-[#d1fae5] font-arcade text-xs tracking-wider uppercase"
+              className="cursor-pointer group flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg bg-gradient-to-b from-[#059669] via-[#065f46] to-[#022c22] border-2 border-[#34d399] shadow-[0_3px_0_#011711,0_0_12px_rgba(52,211,153,0.25)] active:translate-y-0.5 active:shadow-[0_1px_0_#011711] transition-all text-[#d1fae5] font-arcade text-[10px] sm:text-xs tracking-wider uppercase"
             >
               <span
-                className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${
+                className={`w-2.5 h-2.5 rounded-full border transition-all ${
                   soundOn
-                    ? 'bg-[#10b981] border-[#a7f3d0] shadow-[0_0_8px_#10b981]'
+                    ? 'bg-[#10b981] border-[#a7f3d0] shadow-[0_0_6px_#10b981]'
                     : 'bg-[#475569] border-[#94a3b8]'
                 }`}
               />
-              <span>{soundOn ? 'FM AUDIO ON' : 'MUTE AUDIO'}</span>
+              <span>{soundOn ? 'FM ON' : 'FM MUTE'}</span>
             </button>
-
-            {/* FULLSCREEN / RESET */}
-            <div className="flex gap-1.5">
-              <button
-                id="reset-deck-btn"
-                onClick={() => {
-                  soundEngineRef.current?.playButtonBeep();
-                  startGame(false);
-                }}
-                className="flex-1 cursor-pointer flex items-center justify-center gap-1 py-2.5 px-2 rounded-lg bg-gradient-to-b from-[#7f1d1d] via-[#450a0a] to-[#200404] border-2 border-[#ef4444] shadow-[0_4px_0_#150202] active:translate-y-1 active:shadow-[0_1px_0_#150202] transition-all text-[#fee2e2] font-arcade text-[10px] tracking-wider uppercase"
-                title="게임 재시작"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>RESET</span>
-              </button>
-              <button
-                id="full-deck-btn"
-                onClick={toggleFullscreen}
-                className="cursor-pointer flex items-center justify-center px-3 rounded-lg bg-gradient-to-b from-[#334155] via-[#1e293b] to-[#0f172a] border-2 border-[#64748b] shadow-[0_4px_0_#0a0f16] active:translate-y-1 active:shadow-[0_1px_0_#0a0f16] transition-all text-[#e2e8f0] font-arcade text-[10px]"
-                title="전체 화면"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
           </div>
 
-          {/* Main Cockpit Driving Hardware Deck (Shifter + Steering Wheel + Pedals) */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center bg-[#070b10] border-2 border-[#1e293b] rounded-xl p-3 shadow-inner">
-            
-            {/* 1. OUT RUN 2-SPEED MECHANICAL SHIFTER (Left, 3 Cols) */}
-            <div className="md:col-span-3 flex flex-col items-center justify-center bg-gradient-to-b from-[#101721] to-[#070b10] border-2 border-[#334155] rounded-xl p-3 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-              <div className="text-[10px] font-arcade text-[#94a3b8] mb-1.5 flex items-center gap-1">
-                <span>2-SPEED SHIFTER</span>
-                <span className="text-[#38bdf8]">[SPACE/SHIFT]</span>
+          {/* Cockpit Driving Controls: 2-Speed Shifter + Rotating Steering Wheel + Racing Pedals */}
+          <div className="grid grid-cols-12 gap-2 sm:gap-3 items-center bg-[#05080d] border border-[#1e293b] rounded-lg p-2 sm:p-2.5 shadow-inner">
+            {/* 1. 2-SPEED MECHANICAL SHIFTER (Left, 3 Cols) */}
+            <div className="col-span-4 sm:col-span-3 flex flex-col items-center justify-center bg-gradient-to-b from-[#0c131c] to-[#05080c] border border-[#334155] rounded-lg p-2 shadow">
+              <div className="text-[8px] sm:text-[9px] font-arcade text-[#94a3b8] mb-1 flex items-center gap-1">
+                <span>SHIFTER</span>
+                <span className="text-[#38bdf8]">[SPACE]</span>
               </div>
-              
-              {/* Physical Shifter Visual Box */}
+
+              {/* Shifter Image Box with click & active gear indicator */}
               <div
                 onClick={toggleGear}
-                className="relative w-[100px] h-[100px] sm:w-[112px] sm:h-[112px] rounded-lg overflow-hidden border-2 border-[#475569] cursor-pointer group shadow-lg hover:border-[#38bdf8] transition-all"
-                title="클릭하여 LOW / HIGH 기어 변속"
+                className="relative w-16 h-16 sm:w-20 sm:h-20 rounded overflow-hidden border border-[#475569] cursor-pointer group shadow hover:border-[#38bdf8] transition-all"
+                title="클릭하여 LOW / HIGH 기어 변속 [SPACE]"
               >
                 <img
                   src={arcadeGearShifterImg}
                   alt="OutRun 2-Speed Shifter"
                   className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform"
                 />
-                
-                {/* Active Gear Highlight Overlay */}
-                <div className="absolute inset-x-0 bottom-0 py-1 bg-black/80 backdrop-blur-xs flex items-center justify-around text-[9px] font-arcade">
-                  <span className={`px-1.5 py-0.5 rounded font-bold transition-all ${
-                    gear === 'LOW'
-                      ? 'bg-[#38bdf8] text-black shadow-[0_0_8px_#38bdf8]'
-                      : 'text-[#64748b]'
-                  }`}>
+                {/* Active Gear Badges Overlay */}
+                <div className="absolute inset-x-0 bottom-0 py-0.5 bg-black/85 flex items-center justify-around text-[8px] font-arcade">
+                  <span
+                    className={`px-1 py-0.2 rounded font-bold transition-all ${
+                      gear === 'LOW'
+                        ? 'bg-[#38bdf8] text-black shadow-[0_0_6px_#38bdf8]'
+                        : 'text-[#64748b]'
+                    }`}
+                  >
                     LOW
                   </span>
-                  <span className={`px-1.5 py-0.5 rounded font-bold transition-all ${
-                    gear === 'HIGH'
-                      ? 'bg-[#4ade80] text-black shadow-[0_0_8px_#4ade80]'
-                      : 'text-[#64748b]'
-                  }`}>
+                  <span
+                    className={`px-1 py-0.2 rounded font-bold transition-all ${
+                      gear === 'HIGH'
+                        ? 'bg-[#4ade80] text-black shadow-[0_0_6px_#4ade80]'
+                        : 'text-[#64748b]'
+                    }`}
+                  >
                     HIGH
                   </span>
                 </div>
               </div>
 
-              {/* Shifter Spec Label */}
-              <div className="mt-2 text-center text-[9px] font-arcade text-[#cbd5e1]">
+              <div className="mt-1 text-[8px] font-arcade">
                 {gear === 'LOW' ? (
-                  <span className="text-[#38bdf8] animate-pulse">
-                    ● LOW: 초반 가속 (0-160km/h)
-                  </span>
+                  <span className="text-[#38bdf8]">LOW (0-160)</span>
                 ) : (
-                  <span className="text-[#4ade80]">
-                    ● HIGH: 최고속도 294km/h
-                  </span>
+                  <span className="text-[#4ade80]">HIGH (294 MAX)</span>
                 )}
               </div>
             </div>
 
-            {/* 2. SEGA RACING STEERING WHEEL & PADDLES (Center, 6 Cols) */}
-            <div className="md:col-span-6 flex flex-col items-center justify-center p-2">
-              <div className="text-[10px] font-arcade text-[#ffd18c] mb-2 flex items-center gap-1.5">
-                <span>SEGA SPORTS STEERING</span>
-                <span className="text-[9px] text-[#94a3b8]">[A/D or ◀/▶]</span>
+            {/* 2. SEGA SPORTS STEERING WHEEL & PADDLES (Center, 5 Cols) */}
+            <div className="col-span-8 sm:col-span-6 flex flex-col items-center justify-center p-1">
+              <div className="text-[8px] sm:text-[9px] font-arcade text-[#ffd18c] mb-1 flex items-center gap-1">
+                <span>STEERING WHEEL</span>
+                <span className="text-[#94a3b8]">[A / D · ◀ / ▶]</span>
               </div>
 
-              {/* Wheel + Left & Right Paddles Layout */}
-              <div className="flex items-center justify-center gap-2 sm:gap-4 w-full">
+              <div className="flex items-center justify-center gap-1.5 sm:gap-3 w-full">
                 {/* Left Turn Paddle */}
                 <button
                   data-key="left"
@@ -906,24 +864,24 @@ export const CoastlineGame: React.FC = () => {
                     setTouchKey('left', false);
                     setSteeringState(null);
                   }}
-                  className={`touch-none w-16 sm:w-20 h-20 rounded-xl bg-gradient-to-b from-[#1e293b] via-[#0f172a] to-[#020617] ${
+                  className={`touch-none w-12 sm:w-16 h-16 sm:h-20 rounded-lg bg-gradient-to-b from-[#1e293b] via-[#0f172a] to-[#020617] ${
                     steeringState === 'left'
-                      ? 'from-[#38bdf8] to-[#0284c7] text-black border-white translate-y-1'
+                      ? 'from-[#38bdf8] to-[#0284c7] text-black border-white translate-y-0.5 shadow-[0_0_12px_#38bdf8]'
                       : 'border-[#38bdf8] text-[#38bdf8]'
-                  } border-2 font-arcade text-xs sm:text-sm shadow-[0_5px_0_#070d18,0_0_15px_rgba(56,189,248,0.25)] flex flex-col items-center justify-center cursor-pointer transition-all select-none`}
+                  } border-2 font-arcade text-xs shadow-[0_3px_0_#070d18] flex flex-col items-center justify-center cursor-pointer transition-all select-none`}
                   aria-label="스티어링 좌회전"
                 >
-                  <span className="text-base sm:text-lg">◀</span>
-                  <span className="text-[9px]">LEFT</span>
+                  <span className="text-sm sm:text-base">◀</span>
+                  <span className="text-[8px]">LEFT</span>
                 </button>
 
                 {/* Rotating Sega Steering Wheel Centerpiece */}
-                <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-gradient-to-b from-[#475569] via-[#1e293b] to-[#0f172a] border-3 border-[#64748b] shadow-[0_6px_20px_rgba(0,0,0,0.8),inset_0_2px_4px_rgba(255,255,255,0.2)] flex items-center justify-center select-none overflow-hidden">
+                <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full p-1 bg-gradient-to-b from-[#475569] via-[#1e293b] to-[#0f172a] border-2 border-[#64748b] shadow-[0_4px_12px_rgba(0,0,0,0.8)] flex items-center justify-center select-none overflow-hidden flex-shrink-0">
                   <img
                     ref={wheelImgRef}
                     src={arcadeSteeringWheelImg}
                     alt="Sega OutRun Steering Wheel"
-                    className="w-full h-full object-contain pointer-events-none drop-shadow-md transition-transform duration-75 ease-out"
+                    className="w-full h-full object-contain pointer-events-none drop-shadow transition-transform duration-75 ease-out"
                   />
                 </div>
 
@@ -945,37 +903,37 @@ export const CoastlineGame: React.FC = () => {
                     setTouchKey('right', false);
                     setSteeringState(null);
                   }}
-                  className={`touch-none w-16 sm:w-20 h-20 rounded-xl bg-gradient-to-b from-[#1e293b] via-[#0f172a] to-[#020617] ${
+                  className={`touch-none w-12 sm:w-16 h-16 sm:h-20 rounded-lg bg-gradient-to-b from-[#1e293b] via-[#0f172a] to-[#020617] ${
                     steeringState === 'right'
-                      ? 'from-[#38bdf8] to-[#0284c7] text-black border-white translate-y-1'
+                      ? 'from-[#38bdf8] to-[#0284c7] text-black border-white translate-y-0.5 shadow-[0_0_12px_#38bdf8]'
                       : 'border-[#38bdf8] text-[#38bdf8]'
-                  } border-2 font-arcade text-xs sm:text-sm shadow-[0_5px_0_#070d18,0_0_15px_rgba(56,189,248,0.25)] flex flex-col items-center justify-center cursor-pointer transition-all select-none`}
+                  } border-2 font-arcade text-xs shadow-[0_3px_0_#070d18] flex flex-col items-center justify-center cursor-pointer transition-all select-none`}
                   aria-label="스티어링 우회전"
                 >
-                  <span className="text-base sm:text-lg">▶</span>
-                  <span className="text-[9px]">RIGHT</span>
+                  <span className="text-sm sm:text-base">▶</span>
+                  <span className="text-[8px]">RIGHT</span>
                 </button>
               </div>
 
-              {/* Dynamic Turn Status Readout */}
-              <div className="mt-1.5 font-arcade text-[9px] text-[#94a3b8]">
+              {/* Status Readout */}
+              <div className="mt-1 font-arcade text-[8px] text-[#94a3b8]">
                 {steeringState === 'left' ? (
-                  <span className="text-[#38bdf8]">◀ STEERING HARD LEFT</span>
+                  <span className="text-[#38bdf8]">◀ TURNING LEFT</span>
                 ) : steeringState === 'right' ? (
-                  <span className="text-[#38bdf8]">STEERING HARD RIGHT ▶</span>
+                  <span className="text-[#38bdf8]">TURNING RIGHT ▶</span>
                 ) : (
-                  <span>CENTERED · READY</span>
+                  <span>CENTERED</span>
                 )}
               </div>
             </div>
 
-            {/* 3. HEAVY-DUTY CAST METAL RACING PEDALS (Right, 3 Cols) */}
-            <div className="md:col-span-3 flex flex-col items-center justify-center bg-gradient-to-b from-[#101721] to-[#070b10] border-2 border-[#334155] rounded-xl p-3 shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-              <div className="text-[10px] font-arcade text-[#94a3b8] mb-1.5">
-                RACING PEDALS
+            {/* 3. DUAL CAST-METAL RACING PEDALS (Right, 3 Cols) */}
+            <div className="col-span-12 sm:col-span-3 flex flex-row sm:flex-col items-center justify-center bg-gradient-to-b from-[#0c131c] to-[#05080c] border border-[#334155] rounded-lg p-2 shadow gap-2">
+              <div className="text-[8px] sm:text-[9px] font-arcade text-[#94a3b8] sm:mb-1 w-full text-center">
+                PEDALS
               </div>
 
-              <div className="flex items-center gap-2.5 w-full justify-center">
+              <div className="flex items-center gap-2 w-full justify-center">
                 {/* BRAKE PEDAL */}
                 <button
                   data-key="brake"
@@ -994,17 +952,23 @@ export const CoastlineGame: React.FC = () => {
                     setTouchKey('brake', false);
                     setPedalStates((prev) => ({ ...prev, brake: false }));
                   }}
-                  className={`touch-none flex-1 max-w-[84px] h-24 rounded-lg bg-gradient-to-b from-[#7f1d1d] via-[#450a0a] to-[#200404] border-2 ${
-                    pedalStates.brake ? 'border-white from-[#ef4444] to-[#991b1b] translate-y-1.5' : 'border-[#ef4444]'
-                  } shadow-[0_5px_0_#150303,0_0_15px_rgba(239,68,68,0.3)] flex flex-col items-center justify-between p-2 cursor-pointer transition-all select-none`}
+                  className={`touch-none flex-1 max-w-[70px] h-16 sm:h-20 rounded bg-gradient-to-b from-[#7f1d1d] via-[#450a0a] to-[#200404] border-2 ${
+                    pedalStates.brake
+                      ? 'border-white from-[#ef4444] to-[#991b1b] translate-y-0.5 shadow-[0_0_10px_#ef4444]'
+                      : 'border-[#ef4444]'
+                  } shadow-[0_3px_0_#150303] flex flex-col items-center justify-between p-1.5 cursor-pointer transition-all select-none`}
                   aria-label="브레이크 감속 페달"
                 >
-                  <span className="w-full h-1.5 bg-[#ef4444]/40 rounded-full" />
+                  <span className="w-full h-1 bg-[#ef4444]/40 rounded-full" />
                   <div className="text-center">
-                    <div className="font-arcade text-[10px] text-[#fca5a5]">BRAKE</div>
-                    <div className="text-[8px] font-retro text-white/70">감속 [↓]</div>
+                    <div className="font-arcade text-[9px] text-[#fca5a5]">BRAKE</div>
+                    <div className="text-[7px] font-retro text-white/70">감속 [↓]</div>
                   </div>
-                  <span className={`w-3 h-3 rounded-full border ${pedalStates.brake ? 'bg-[#ef4444] border-white shadow-[0_0_8px_#ef4444]' : 'bg-[#450a0a] border-[#7f1d1d]'}`} />
+                  <span
+                    className={`w-2 h-2 rounded-full border ${
+                      pedalStates.brake ? 'bg-[#ef4444] border-white' : 'bg-[#450a0a] border-[#7f1d1d]'
+                    }`}
+                  />
                 </button>
 
                 {/* ACCEL PEDAL */}
@@ -1025,258 +989,73 @@ export const CoastlineGame: React.FC = () => {
                     setTouchKey('gas', false);
                     setPedalStates((prev) => ({ ...prev, gas: false }));
                   }}
-                  className={`touch-none flex-1 max-w-[84px] h-24 rounded-lg bg-gradient-to-b from-[#064e3b] via-[#022c22] to-[#01140e] border-2 ${
-                    pedalStates.gas ? 'border-white from-[#10b981] to-[#047857] translate-y-1.5' : 'border-[#10b981]'
-                  } shadow-[0_5px_0_#02120d,0_0_15px_rgba(16,185,129,0.3)] flex flex-col items-center justify-between p-2 cursor-pointer transition-all select-none`}
+                  className={`touch-none flex-1 max-w-[70px] h-16 sm:h-20 rounded bg-gradient-to-b from-[#064e3b] via-[#022c22] to-[#01140e] border-2 ${
+                    pedalStates.gas
+                      ? 'border-white from-[#10b981] to-[#047857] translate-y-0.5 shadow-[0_0_10px_#10b981]'
+                      : 'border-[#10b981]'
+                  } shadow-[0_3px_0_#02120d] flex flex-col items-center justify-between p-1.5 cursor-pointer transition-all select-none`}
                   aria-label="가속 액셀 페달"
                 >
-                  <span className="w-full h-1.5 bg-[#10b981]/40 rounded-full" />
+                  <span className="w-full h-1 bg-[#10b981]/40 rounded-full" />
                   <div className="text-center">
-                    <div className="font-arcade text-[10px] text-[#86efac]">ACCEL</div>
-                    <div className="text-[8px] font-retro text-white/70">가속 [↑]</div>
+                    <div className="font-arcade text-[9px] text-[#86efac]">ACCEL</div>
+                    <div className="text-[7px] font-retro text-white/70">가속 [↑]</div>
                   </div>
-                  <span className={`w-3 h-3 rounded-full border ${pedalStates.gas ? 'bg-[#10b981] border-white shadow-[0_0_8px_#10b981]' : 'bg-[#022c22] border-[#064e3b]'}`} />
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </section>
-
-        {/* Real Arcade Coin Door Section */}
-        <section
-          id="arcade-coin-section"
-          className="mt-3 bg-[#0a0f16] border-2 border-[#1e293b] rounded p-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-inner"
-        >
-          {/* Coin Door Asset Graphic with Clickable Reject Buttons */}
-          <div className="relative w-full sm:w-[260px] h-[95px] rounded overflow-hidden border border-[#334155] shadow-md flex-shrink-0">
-            <img
-              src={coinDoorImg}
-              alt="Arcade Cabinet Coin Door"
-              className="w-full h-full object-cover object-center"
-              referrerPolicy="no-referrer"
-            />
-            {/* Interactive 25c Coin Push Reject Buttons Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center gap-6 pointer-events-auto">
-              <button
-                onClick={insertCoin}
-                className="w-9 h-11 bg-gradient-to-b from-[#f97316] to-[#c2410c] hover:from-[#fb923c] hover:to-[#ea580c] active:scale-95 border-2 border-[#ffedd5] rounded shadow-[0_0_12px_#f97316] text-[#fff] font-arcade text-[8px] flex flex-col items-center justify-center cursor-pointer transition-transform"
-                title="25¢ 동전 넣기"
-              >
-                <span>25¢</span>
-                <span className="text-[6px]">PUSH</span>
-              </button>
-              <button
-                onClick={insertCoin}
-                className="w-9 h-11 bg-gradient-to-b from-[#f97316] to-[#c2410c] hover:from-[#fb923c] hover:to-[#ea580c] active:scale-95 border-2 border-[#ffedd5] rounded shadow-[0_0_12px_#f97316] text-[#fff] font-arcade text-[8px] flex flex-col items-center justify-center cursor-pointer transition-transform"
-                title="25¢ 동전 넣기"
-              >
-                <span>25¢</span>
-                <span className="text-[6px]">PUSH</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Sega Arcade Serial & Coin Specs */}
-          <div className="flex-1 text-center sm:text-left font-arcade text-[10px] space-y-1">
-            <div className="text-[#ffd18c] flex items-center justify-center sm:justify-start gap-2">
-              <Coins className="w-4 h-4 text-[#ffb703]" />
-              <span>COIN-OP ARCADE SIMULATOR</span>
-            </div>
-            <div className="text-[#94a3b8] text-[9px] font-retro">
-              오렌지색 25¢ 버튼을 클릭하거나 키보드 [5] 또는 [C]를 눌러 동전을 투입할 수 있습니다.
-            </div>
-            <div className="text-[#38bdf8] text-[9px]">
-              MODEL: 1986-OUTRUN · SEGA ENTERPRISES, LTD. TOKYO JAPAN
-            </div>
-          </div>
-
-          {/* Credits Counter Pill */}
-          <div className="bg-black/80 border-2 border-[#f59e0b] px-4 py-2 rounded text-center min-w-[120px]">
-            <div className="text-[8px] font-arcade text-[#94a3b8]">CREDITS</div>
-            <div className="text-xl font-arcade text-[#fef08a] [text-shadow:0_0_10px_#f59e0b]">
-              {credits < 10 ? '0' + credits : credits}
-            </div>
-          </div>
-        </section>
-
-        {/* Out Run Course Map & Route Selector */}
-        <details
-          id="course-preview-details"
-          open={previewOpen}
-          onToggle={(e) => setPreviewOpen((e.currentTarget as HTMLDetailsElement).open)}
-          className="mt-3 text-[#94a3b8] text-xs border border-[#1e293b] rounded p-3 bg-gradient-to-b from-[#0d1622] to-[#070c14] shadow"
-        >
-          <summary className="cursor-pointer font-arcade text-[#7dd3fc] hover:text-white transition-colors flex items-center justify-between list-none text-[10px] sm:text-[11px]">
-            <div className="flex items-center gap-2">
-              <Compass className="w-4 h-4 text-[#ffd18c]" />
-              <span>OUT RUN COURSE MAP & SECTOR TEST</span>
-            </div>
-            <span className="text-[9px] text-[#ffd18c] bg-black/60 px-2 py-0.5 rounded border border-[#1e293b]">
-              ROUTE SELECTOR ▼
-            </span>
-          </summary>
-
-          <div className="flex flex-wrap gap-2 mt-3 pt-2.5 border-t border-[#1e293b] font-arcade text-[9px]">
-            <button
-              id="forkPreview"
-              onClick={() => preview(145000)}
-              className="bg-[#0f2838] hover:bg-[#163b52] border border-[#38bdf8] text-[#bae6fd] px-2.5 py-1.5 rounded cursor-pointer transition-all"
-            >
-              FORK 분기점
-            </button>
-            <button
-              id="mergePreview"
-              onClick={() => preview(225000)}
-              className="bg-[#0f2838] hover:bg-[#163b52] border border-[#38bdf8] text-[#bae6fd] px-2.5 py-1.5 rounded cursor-pointer transition-all"
-            >
-              MERGE 합류점
-            </button>
-            <button
-              onClick={() => preview(65000)}
-              className="bg-[#0f2838] hover:bg-[#163b52] border border-[#38bdf8] text-[#bae6fd] px-2.5 py-1.5 rounded cursor-pointer transition-all"
-            >
-              SEASIDE 해변
-            </button>
-            {Drive.STAGES.map((stg, i) => (
-              <button
-                key={stg.name}
-                onClick={() => preview(i * Drive.STAGE_LENGTH + 5000, i)}
-                className="bg-[#1e293b] hover:bg-[#334155] border border-[#475569] text-[#e2e8f0] px-2.5 py-1.5 rounded cursor-pointer transition-all"
-              >
-                STAGE {i + 1}:{stg.name.toUpperCase()}
-              </button>
-            ))}
-            <button
-              onClick={() => {
-                startGame(false);
-                const s = stateRef.current;
-                s.z = 278000;
-                s.speed = Drive.MAX;
-                s.checkpoint = 1;
-              }}
-              className="bg-[#362208] hover:bg-[#52330a] border border-[#f59e0b] text-[#fde047] px-2.5 py-1.5 rounded cursor-pointer transition-all font-bold"
-            >
-              S-CURVE 극한커브
-            </button>
-            <button
-              onClick={() => preview(Drive.END - 20000, 5)}
-              className="bg-[#362208] hover:bg-[#52330a] border border-[#f59e0b] text-[#fde047] px-2.5 py-1.5 rounded cursor-pointer transition-all font-bold"
-            >
-              GOAL 골인
-            </button>
-            <button
-              onClick={() => preview(65000, undefined, false, true)}
-              className="bg-[#450a0a] hover:bg-[#7f1d1d] border border-[#ef4444] text-[#fca5a5] px-2.5 py-1.5 rounded cursor-pointer transition-all font-bold"
-            >
-              CRASH 충돌테스트
-            </button>
-
-            {/* Dynamic Weather System Lab */}
-            <div className="w-full mt-3 pt-3 border-t border-[#1e293b]">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
-                <div className="flex items-center gap-2 text-[#ffd18c]">
-                  <CloudRain className="w-4 h-4 text-[#38bdf8]" />
-                  <span className="font-bold">OUT RUN DYNAMIC WEATHER LAB · 실시간 날씨 제어</span>
-                </div>
-                <span className="text-[8px] text-[#94a3b8] font-retro">
-                  주행 진행 시 고원 안개, 사막 열기/모래, 유적 폭우/번개, 석양 노을이 자연스럽게 교차합니다
-                </span>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setWeather(null)}
-                  className={`px-3 py-1.5 rounded cursor-pointer transition-all border flex items-center gap-1.5 ${
-                    activeWeatherIndex === null
-                      ? 'bg-[#0284c7] text-white border-[#38bdf8] shadow-[0_0_10px_#0284c7]'
-                      : 'bg-[#0f172a] text-[#94a3b8] border-[#334155] hover:border-[#64748b]'
-                  }`}
-                >
-                  <span>🔄 DYNAMIC (코스 자동 연동)</span>
-                </button>
-
-                {STAGE_WEATHER_PRESETS.map((preset, idx) => (
-                  <button
-                    key={preset.type}
-                    onClick={() => {
-                      setWeather(idx);
-                      if (!isPlaying) {
-                        preview(idx * Drive.STAGE_LENGTH + 5000, idx);
-                      }
-                    }}
-                    className={`px-2.5 py-1.5 rounded cursor-pointer transition-all border flex items-center gap-1.5 ${
-                      activeWeatherIndex === idx
-                        ? 'bg-[#b45309] text-[#fef3c7] border-[#f59e0b] shadow-[0_0_10px_#f59e0b]'
-                        : 'bg-[#1e293b] text-[#cbd5e1] border-[#475569] hover:border-[#94a3b8]'
+                  <span
+                    className={`w-2 h-2 rounded-full border ${
+                      pedalStates.gas ? 'bg-[#10b981] border-white' : 'bg-[#022c22] border-[#064e3b]'
                     }`}
-                    title={preset.description}
-                  >
-                    <span>{preset.icon}</span>
-                    <span>{preset.ko}</span>
-                    <span className="text-[8px] opacity-60 font-mono">({preset.name})</span>
-                  </button>
-                ))}
+                  />
+                </button>
               </div>
             </div>
           </div>
-        </details>
 
-        {/* Arcade Cabinet Steering Wheel Instruction Card Plate */}
-        <section
-          id="game-guide"
-          aria-label="조작 안내"
-          className="mt-3 p-3 bg-gradient-to-b from-[#0b121b] to-[#05090f] border-2 border-[#1e293b] rounded text-[#d5e9e9] text-xs leading-relaxed shadow"
-        >
-          <div className="flex items-center justify-between mb-2 border-b border-[#1e293b] pb-1.5">
-            <div className="flex items-center gap-2">
-              <Flag className="w-4 h-4 text-[#ffd18c]" />
-              <b className="font-arcade text-xs text-[#ffd18c] tracking-wider uppercase">
-                OUT RUN INSTRUCTION CARD · 조작 안내
-              </b>
+          {/* Sleek Bottom Status Bar: Minimalist Keyboard Guide + FPS */}
+          <div className="mt-2 pt-2 border-t border-[#1e293b]/70 flex flex-col sm:flex-row sm:items-center justify-between text-[9px] font-arcade text-[#64748b] gap-1">
+            <div className="flex items-center gap-1.5 flex-wrap text-[#94a3b8]">
+              <span>🎮 [◀ ▶] 조향</span>
+              <span className="text-[#334155]">·</span>
+              <span>[↑/↓] 가속/감속</span>
+              <span className="text-[#334155]">·</span>
+              <span>[SPACE] 2단 기어</span>
+              <span className="text-[#334155]">·</span>
+              <span>[P] 일시정지</span>
+              <span className="text-[#334155]">·</span>
+              <span>[5/C] 코인 투입</span>
             </div>
-            <span className="font-arcade text-[9px] text-[#38bdf8]">SEGA 1986 REPRODUCTION</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-retro text-xs text-[#cde4e8]">
-            <div className="space-y-1">
-              <div>
-                <span className="font-arcade text-[9px] text-[#38bdf8]">◀ / ▶ (또는 ← → / A·D)</span>：스티어링 핸들 조작
-              </div>
-              <div>
-                <span className="font-arcade text-[9px] text-[#f87171]">BRAKE (또는 ↓ / S)</span>：브레이크 감속 (급커브 필수)
-              </div>
-              <div>
-                <span className="font-arcade text-[9px] text-[#4ade80]">GAS (또는 ↑ / W)</span>：가속 (자동 액셀 활성화 시 자동)
-              </div>
-              <div>
-                <span className="font-arcade text-[9px] text-[#facc15]">GEAR (또는 SPACE / SHIFT)</span>：2단 수동 기어 변속 (LOW ↔ HIGH)
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div>
-                <span className="font-arcade text-[9px] text-[#ffd18c]">ROUTE FORK</span>：왼쪽은 해안(SEASIDE), 오른쪽은 고원(HIGHLAND)
-              </div>
-              <div>
-                <span className="font-arcade text-[9px] text-[#ffd18c]">CHECKPOINT</span>：합류 지점 통과 시 제한 시간(TIME) 연장
-              </div>
-              <div>
-                <span className="font-arcade text-[9px] text-[#38bdf8]">SHORTCUTS</span>：[SPACE] 기어 · [P] 일시정지 · [5/C] 코인
-              </div>
+            <div className="text-[#38bdf8] font-mono text-[8px] bg-black/50 px-2 py-0.5 rounded border border-[#1e293b] self-start sm:self-auto">
+              SYS: {fpsStatus}
             </div>
           </div>
         </section>
 
-        {/* Arcade Cabinet Footer */}
-        <footer
-          id="arcade-footer"
-          className="text-[10px] text-[#64748b] mt-2.5 font-arcade flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-1 border-t border-[#1e293b] pt-2"
-        >
-          <div>OUT RUN (C) 1986 SEGA TRIBUTE · FERRARI TESTAROSSA SPIDER</div>
-          <span id="status" className="text-[#38bdf8] bg-black/60 px-2 py-0.5 rounded border border-[#1e293b]">
-            SYSTEM: {fpsStatus}
-          </span>
-        </footer>
+        {/* TOP 5 HIGH SCORE HALL OF FAME MODAL */}
+        <HighScoreModal
+          isOpen={isHighScoreOpen}
+          onClose={() => setIsHighScoreOpen(false)}
+          scores={highScores}
+          onScoresUpdated={(newScores) => setHighScores(newScores)}
+          pendingRecord={pendingRecord}
+          onClearPendingRecord={() => setPendingRecord(null)}
+        />
+
+        {/* SEGA SYSTEM 16 OPERATOR TEST & WEATHER LAB MODAL */}
+        <ServiceMenuModal
+          isOpen={isServiceOpen}
+          onClose={() => setIsServiceOpen(false)}
+          onPreview={preview}
+          onStartGame={startGame}
+          activeWeatherIndex={activeWeatherIndex}
+          onSetWeather={setWeather}
+          onJumpSCurve={() => {
+            startGame(false);
+            const s = stateRef.current;
+            s.z = 278000;
+            s.speed = Drive.MAX;
+            s.checkpoint = 1;
+          }}
+        />
       </div>
     </main>
   );
